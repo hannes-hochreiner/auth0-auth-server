@@ -1,0 +1,138 @@
+import {AuthServer} from '../bld/authServer';
+
+describe("AuthServer", function() {
+  it("can be constructed", function() {
+    expect(new AuthServer()).not.toThrow;
+  });
+
+  it("can be initialized", function() {
+    let as = new AuthServer({Server: ServerMock});
+
+    as.init('conf');
+
+    expect(as._conf).toEqual('conf');
+    expect(as._server instanceof ServerMock).toBeTrue;
+  });
+
+  it("can handle authorized requests", async function() {
+    let as = new AuthServer({Server: ServerMock}, verify, rolesFromPath, intersection);
+
+    as.init('conf');
+
+    let resp = new ResponseMock();
+
+    await as._requestHandler({
+      headers: {
+        'x-original-method': 'verb',
+        'x-original-uri': 'path',
+        authorization: 'auth token'
+      }
+    }, resp);
+
+    expect(resp._headers).toEqual({
+      'x-groups': 'inter1,inter2'
+    });
+    expect(resp.statusCode).toEqual(200);
+    expect(resp._endWasCalled).toBeTrue;
+  });
+
+  it("can handle unauthorized requests", async function() {
+    let as = new AuthServer({Server: ServerMock}, verify, rolesFromPath, intersectionEmpty);
+
+    as.init('conf');
+
+    let resp = new ResponseMock();
+
+    await as._requestHandler({
+      headers: {
+        'x-original-method': 'verb',
+        'x-original-uri': 'path',
+        authorization: 'auth token'
+      }
+    }, resp);
+
+    expect(resp._headers).toEqual({});
+    expect(resp.statusCode).toEqual(403);
+    expect(resp._endWasCalled).toBeTrue;
+  });
+
+  it("can handle failed requests", async function() {
+    let as = new AuthServer({Server: ServerMock}, verifyFailed, rolesFromPath, intersection);
+
+    as.init('conf');
+
+    let resp = new ResponseMock();
+
+    await as._requestHandler({
+      headers: {
+        'x-original-method': 'verb',
+        'x-original-uri': 'path',
+        authorization: 'auth token'
+      }
+    }, resp);
+
+    expect(resp._headers).toEqual({});
+    expect(resp.statusCode).toEqual(500);
+    expect(resp._endWasCalled).toBeTrue;
+  });
+});
+
+function rolesFromPath(conf, path, verb) {
+  expect(conf).toEqual('conf');
+  expect(path).toEqual('path');
+  expect(verb).toEqual('verb');
+
+  return 'roles';
+}
+
+function verify(token) {
+  expect(token).toEqual('token');
+
+  return {scope: 'scope1 scope2'};
+}
+
+function verifyFailed(token) {
+  expect(token).toEqual('token');
+
+  throw new Error();
+}
+
+function intersection(array1, array2) {
+  expect(array1).toEqual('roles');
+  expect(array2).toEqual(['scope1', 'scope2']);
+
+  return ['inter1', 'inter2'];
+}
+
+function intersectionEmpty(array1, array2) {
+  expect(array1).toEqual('roles');
+  expect(array2).toEqual(['scope1', 'scope2']);
+
+  return [];
+}
+
+class ResponseMock {
+  constructor() {
+    this._endWasCalled = false;
+    this._headers = {};
+  }
+
+  end() {
+    this._endWasCalled = true;
+  }
+
+  setHeader(header, value) {
+    this._headers[header] = value;
+  }
+}
+
+class ServerMock {
+  on(event, callback) {
+    expect(event).toEqual('request');
+    expect(typeof callback).toEqual('function');
+  }
+
+  listen(port) {
+    expect(port).toEqual(8888);
+  }
+}

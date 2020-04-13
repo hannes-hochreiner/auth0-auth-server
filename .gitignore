@@ -1,3 +1,7 @@
+# Own
+bld
+bld_test
+
 # Logs
 logs
 *.log
