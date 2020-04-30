@@ -14,7 +14,7 @@ describe("AuthServer", function() {
     expect(as._server instanceof ServerMock).toBeTrue;
   });
 
-  it("can handle authorized requests", async function() {
+  it("can handle authorized requests from scope", async function() {
     let as = new AuthServer({Server: ServerMock}, verify, rolesFromPath, intersection, new LoggerMute());
 
     as.init('conf');
@@ -31,6 +31,28 @@ describe("AuthServer", function() {
 
     expect(resp._headers).toEqual({
       'x-groups': 'inter1,inter2'
+    });
+    expect(resp.statusCode).toEqual(200);
+    expect(resp._endWasCalled).toBeTrue;
+  });
+
+  it("can handle authorized requests from permissions", async function() {
+    let as = new AuthServer({Server: ServerMock}, verifyPermissions, rolesFromPath, intersectionPermissions, new LoggerMute());
+
+    as.init('conf');
+
+    let resp = new ResponseMock();
+
+    await as._requestHandler({
+      headers: {
+        'x-original-method': 'verb',
+        'x-original-uri': 'path',
+        authorization: 'auth token'
+      }
+    }, resp);
+
+    expect(resp._headers).toEqual({
+      'x-groups': 'inter1'
     });
     expect(resp.statusCode).toEqual(200);
     expect(resp._endWasCalled).toBeTrue;
@@ -91,6 +113,17 @@ function verify(token) {
   return {scope: 'scope1 scope2'};
 }
 
+function verifyPermissions(token) {
+  expect(token).toEqual('token');
+
+  return {
+    scope: 'scope1 scope2',
+    permissions: [
+      'permission1'
+    ]
+  };
+}
+
 function verifyFailed(token) {
   expect(token).toEqual('token');
 
@@ -102,6 +135,13 @@ function intersection(array1, array2) {
   expect(array2).toEqual(['scope1', 'scope2']);
 
   return ['inter1', 'inter2'];
+}
+
+function intersectionPermissions(array1, array2) {
+  expect(array1).toEqual('roles');
+  expect(array2).toEqual(['scope1', 'scope2', 'permission1']);
+
+  return ['inter1'];
 }
 
 function intersectionEmpty(array1, array2) {

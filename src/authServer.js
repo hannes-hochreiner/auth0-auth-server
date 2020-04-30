@@ -24,6 +24,11 @@ export class AuthServer {
       let tokenDecoded = await this._verify(token);
       this._logger.debug(tokenDecoded);
       let scopes = tokenDecoded.scope.split(' ');
+
+      if (typeof tokenDecoded.permissions !== 'undefined') {
+        scopes = scopes.concat(tokenDecoded.permissions);
+      }
+
       let inter = this._getIntersection(roles, scopes);
       this._logger.debug(`intersection of roles and scopes: ${JSON.stringify(inter)}`);
 
