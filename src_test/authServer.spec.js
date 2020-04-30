@@ -6,7 +6,7 @@ describe("AuthServer", function() {
   });
 
   it("can be initialized", function() {
-    let as = new AuthServer({Server: ServerMock});
+    let as = new AuthServer({Server: ServerMock}, null, null, null, new LoggerMute());
 
     as.init('conf');
 
@@ -15,7 +15,7 @@ describe("AuthServer", function() {
   });
 
   it("can handle authorized requests", async function() {
-    let as = new AuthServer({Server: ServerMock}, verify, rolesFromPath, intersection);
+    let as = new AuthServer({Server: ServerMock}, verify, rolesFromPath, intersection, new LoggerMute());
 
     as.init('conf');
 
@@ -37,7 +37,7 @@ describe("AuthServer", function() {
   });
 
   it("can handle unauthorized requests", async function() {
-    let as = new AuthServer({Server: ServerMock}, verify, rolesFromPath, intersectionEmpty);
+    let as = new AuthServer({Server: ServerMock}, verify, rolesFromPath, intersectionEmpty, new LoggerMute());
 
     as.init('conf');
 
@@ -57,7 +57,7 @@ describe("AuthServer", function() {
   });
 
   it("can handle failed requests", async function() {
-    let as = new AuthServer({Server: ServerMock}, verifyFailed, rolesFromPath, intersection);
+    let as = new AuthServer({Server: ServerMock}, verifyFailed, rolesFromPath, intersection, new LoggerMute());
 
     as.init('conf');
 
@@ -134,5 +134,13 @@ class ServerMock {
 
   listen(port) {
     expect(port).toEqual(8888);
+  }
+}
+
+class LoggerMute {
+  constructor() {
+    for (let ll of ['debug', 'info', 'warn', 'error', 'log']) {
+      this[ll] = () => {};
+    }
   }
 }
