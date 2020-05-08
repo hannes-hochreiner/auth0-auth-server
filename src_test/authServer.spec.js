@@ -58,6 +58,32 @@ describe("AuthServer", function() {
     expect(resp._endWasCalled).toBeTrue;
   });
 
+  it("can handle authorized requests from permissions with custom headers", async function() {
+    let as = new AuthServer({Server: ServerMock}, verifyPermissions, rolesFromPath, intersectionPermissions, new LoggerMute());
+
+    as.init('conf', {
+      method: 'x-test-method',
+      uri: 'x-test-uri',
+      groups: 'x-test-groups'
+    });
+
+    let resp = new ResponseMock();
+
+    await as._requestHandler({
+      headers: {
+        'x-test-method': 'verb',
+        'x-test-uri': 'path',
+        authorization: 'auth token'
+      }
+    }, resp);
+
+    expect(resp._headers).toEqual({
+      'x-test-groups': 'inter1'
+    });
+    expect(resp.statusCode).toEqual(200);
+    expect(resp._endWasCalled).toBeTrue;
+  });
+
   it("can handle unauthorized requests", async function() {
     let as = new AuthServer({Server: ServerMock}, verify, rolesFromPath, intersectionEmpty, new LoggerMute());
 

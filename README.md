@@ -17,6 +17,11 @@ It expects a configuration file as follows:
   "audience": "<string>",
   "issuer": "<string>",
   "algorithms": ["<algorithm1>", "<algorithm2>"],
+  "headerNames": {
+    "method": "<string> || 'x-original-method'",
+    "uri": "<string> || 'x-original-uri'",
+    "groups": "<string> || 'x-groups'"
+  },
   "auth": {
     "<path1>": {
       "<verb1 e.g. GET>": ["role/scope 1", "role/scope 2"],

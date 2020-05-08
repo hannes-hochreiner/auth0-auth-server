@@ -20,7 +20,7 @@ async function init() {
 
     const server = new AuthServer(http, verifier.verify.bind(verifier), getRelevantRolesFromVerbPath, getIntersection, log);
 
-    server.init(conf.auth);
+    server.init(conf.auth, conf.headerNames);
   } catch(error) {
     console.log(error);
   }
