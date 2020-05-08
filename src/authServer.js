@@ -17,6 +17,7 @@ export class AuthServer {
 
   async _requestHandler(request, response) {
     try {
+      this._logger.debug(request);
       let verb = request.headers['x-original-method'];
       let path = request.headers['x-original-uri'];
       let token = request.headers.authorization.split(' ')[1];
