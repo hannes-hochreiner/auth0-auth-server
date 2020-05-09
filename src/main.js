@@ -6,7 +6,7 @@ import {readFile} from './fs';
 import {getRelevantRolesFromVerbPath, getIntersection} from './utils';
 import {AuthServer} from './authServer';
 import {Verifier} from './verifier';
-import { LogFilter } from './logFilter';
+import {LogFilter} from './logFilter';
 
 commander.option('-c, --configuration [path]', 'path of the configuration file').parse(process.argv);
 

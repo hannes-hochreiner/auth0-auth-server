@@ -2,7 +2,7 @@
   "name": "auth0-auth-server",
   "version": "1.2.0",
   "description": "An authentication server using Auth0 as a backend.",
-  "main": "bld/index.js",
+  "main": "bld/main.js",
   "scripts": {
     "test": "npm run build; npm run build_test; jasmine --config=jasmine.json",
     "build": "rm -r ./bld; babel src -d bld",
@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/hannes-hochreiner/auth0-auth-server#readme",
   "dependencies": {
+    "commander": "^5.1.0",
     "jsonwebtoken": "^8.5.1",
     "jwks-rsa": "^1.7.0"
   },
