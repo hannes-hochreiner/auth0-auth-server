@@ -71,7 +71,7 @@ Configuration:
     "/": {
       "GET": ["read:user"],
     },
-    "/api": {
+    "/api/": {
       "GET": ["read:admin"],
       "POST": ["write:admin"]
     }
