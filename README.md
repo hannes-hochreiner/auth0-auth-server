@@ -13,7 +13,6 @@ It expects a configuration file as follows:
 
 ```json
 {
-  "logLevel": "'debug' || 'error' || 'info' || 'warn' || 'trace'",
   "audience": "<string>",
   "issuer": "<string>",
   "headerNames": {
@@ -40,6 +39,7 @@ The program expects two environment variables:
 | --- | --- | --- |
 | AUTH0_CONFIG | Path of the configuration file | config.json |
 | AUTH0_BIND_ADDRESS | IP address and port for the server | 127.0.0.1:8888 |
+| RUST_LOG | Log level 'debug' || 'error' || 'info' || 'warn' || 'trace' | 'error' |
 
 ### Running the server
 
@@ -59,10 +59,14 @@ The longest matching path is selected and the roles associated with the requeste
 Configuration:
 ```json
 {
-  "jwksUri": "https://<tenant>.<region>.auth0.com/.well-known/jwks.json",
-  "audience": "https://<audience>.net",
-  "issuer": "https://<tenant>.<region>.auth0.com/",
-  "algorithms": ["RS256"],
+  "audience": "https://my.audience.com",
+  "issuer": "https://my.issuer.com/",
+  "headerNames": {
+    "method": "x-original-method",
+    "uri": "x-original-uri",
+    "groups": "x-groups",
+    "id": "x-id"
+  },
   "auth": {
     "/": {
       "GET": ["read:user"],
