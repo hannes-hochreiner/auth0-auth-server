@@ -3,15 +3,11 @@ use std::{env, error::Error};
 use alcoholic_jwt::{token_kid, validate, Validation, JWKS};
 use std::fs::File;
 use std::io::BufReader;
-// use std::path::Path;
 use serde::Deserialize;
 use serde_json;
 use std::collections::HashMap;
 use tokio::sync::{oneshot, mpsc};
-// use std::convert::Infallible;
-// use std::net::SocketAddr;
 use hyper::{Body, Client, header::HeaderName, HeaderMap, header::HeaderValue, Request, Response, Server, StatusCode};
-// use hyper::service::{make_service_fn, service_fn};
 use hyper::service::Service;
 use hyper_tls::HttpsConnector;
 use hyper::body::HttpBody;
@@ -124,14 +120,14 @@ impl Service<Request<Body>> for AuthorizationService {
             let authorization = match get_header_value("authorization", req.headers()) {
                 Ok(val) => val,
                 _ => {
-                    return Ok(Response::builder().status(StatusCode::UNAUTHORIZED).body(Body::empty()).unwrap());
+                    return Ok(Response::builder().status(StatusCode::FORBIDDEN).body(Body::empty()).unwrap());
                 }
             };
             let token = match authorization.split(" ").last() {
                 Some(token) => token,
                 None => {
                     error!("Could not find token");
-                    return Ok(Response::builder().status(StatusCode::UNAUTHORIZED).body(Body::empty()).unwrap());
+                    return Ok(Response::builder().status(StatusCode::FORBIDDEN).body(Body::empty()).unwrap());
                 }
             };
             let kid = token_kid(token).expect("Error finding key id").expect("Error decoding key");
@@ -152,7 +148,7 @@ impl Service<Request<Body>> for AuthorizationService {
                     val
                 },
                 _ => {
-                    return Ok(Response::builder().status(StatusCode::UNAUTHORIZED).body(Body::empty()).unwrap());
+                    return Ok(Response::builder().status(StatusCode::FORBIDDEN).body(Body::empty()).unwrap());
                 }
             };
 
@@ -163,7 +159,7 @@ impl Service<Request<Body>> for AuthorizationService {
                     val
                 },
                 _ => {
-                    return Ok(Response::builder().status(StatusCode::UNAUTHORIZED).body(Body::empty()).unwrap());
+                    return Ok(Response::builder().status(StatusCode::FORBIDDEN).body(Body::empty()).unwrap());
                 }
             };
 
@@ -191,7 +187,7 @@ impl Service<Request<Body>> for AuthorizationService {
                 },
                 None => {
                     error!("No matched path found");
-                    return Ok(Response::builder().status(StatusCode::UNAUTHORIZED).body(Body::empty()).unwrap());
+                    return Ok(Response::builder().status(StatusCode::FORBIDDEN).body(Body::empty()).unwrap());
                 }
             };
 
@@ -202,7 +198,7 @@ impl Service<Request<Body>> for AuthorizationService {
                 }
                 None => {
                     error!("No verb \"{}\" not found for path", method);
-                    return Ok(Response::builder().status(StatusCode::UNAUTHORIZED).body(Body::empty()).unwrap());
+                    return Ok(Response::builder().status(StatusCode::FORBIDDEN).body(Body::empty()).unwrap());
                 }
             };
 
@@ -216,7 +212,7 @@ impl Service<Request<Body>> for AuthorizationService {
 
             if relevant_scopes.len() == 0 {
                 error!("No relevant scopes found");
-                return Ok(Response::builder().status(StatusCode::UNAUTHORIZED).body(Body::empty()).unwrap());
+                return Ok(Response::builder().status(StatusCode::FORBIDDEN).body(Body::empty()).unwrap());
             }
 
             let id_name = config.headerNames.get("id").unwrap_or(&String::from("x-id")).clone();

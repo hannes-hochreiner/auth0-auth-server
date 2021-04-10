@@ -13,7 +13,7 @@ It expects a configuration file as follows:
 
 ```json
 {
-  "logLevel": "info",
+  "logLevel": "'debug' || 'error' || 'info' || 'warn' || 'trace'",
   "audience": "<string>",
   "issuer": "<string>",
   "headerNames": {
