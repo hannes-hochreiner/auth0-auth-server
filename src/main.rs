@@ -35,12 +35,12 @@ struct Configuration {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
-    let config_filename = get_env("AUTH0_CONFIG")?;
+    let config_filename = get_env("AUTH0_CONFIG").unwrap_or(String::from("config.json"));
     let file = File::open(config_filename)?;
     let reader = BufReader::new(file);
     let config: Configuration = serde_json::from_reader(reader)?;
     let issuer = config.issuer.clone();
-    let address = get_env("AUTH0_BIND_ADDRESS")?;
+    let address = get_env("AUTH0_BIND_ADDRESS").unwrap_or(String::from("127.0.0.1:8888"));
     let addr = (&*address).parse()?;
     info!("Starting server at {}", address);
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<oneshot::Sender<JWKS>>(100);
@@ -145,7 +145,7 @@ impl Service<Request<Body>> for AuthorizationService {
             let scopes: Vec<&str> = claims["scope"].as_str().expect("no scope found").split(" ").collect();
             debug!("Found scopes: {:?}", scopes);
 
-            let method_name = config.headerNames.get("method").unwrap_or(&String::from("method")).clone();
+            let method_name = config.headerNames.get("method").unwrap_or(&String::from("x-original-method")).clone();
             let method = match get_header_value(&*method_name, req.headers()) {
                 Ok(val) => {
                     debug!("Found forwarded method \"{}\" in header \"{}\"", val, method_name);
@@ -156,7 +156,7 @@ impl Service<Request<Body>> for AuthorizationService {
                 }
             };
 
-            let uri_name = config.headerNames.get("uri").unwrap_or(&String::from("uri")).clone();
+            let uri_name = config.headerNames.get("uri").unwrap_or(&String::from("x-original-uri")).clone();
             let uri = match get_header_value(&*uri_name, req.headers()) {
                 Ok(val) => {
                     debug!("Found forwarded uri \"{}\" in header \"{}\"", val, uri_name);
@@ -219,9 +219,9 @@ impl Service<Request<Body>> for AuthorizationService {
                 return Ok(Response::builder().status(StatusCode::UNAUTHORIZED).body(Body::empty()).unwrap());
             }
 
-            let id_name = config.headerNames.get("id").unwrap_or(&String::from("id")).clone();
+            let id_name = config.headerNames.get("id").unwrap_or(&String::from("x-id")).clone();
             debug!("Using \"{}\" as the id header name", id_name);
-            let group_name = config.headerNames.get("groups").unwrap_or(&String::from("groups")).clone();
+            let group_name = config.headerNames.get("groups").unwrap_or(&String::from("x-groups")).clone();
             debug!("Using \"{}\" as the group header name", group_name);
 
             // Create the HTTP response
