@@ -4,7 +4,6 @@ on:
     branches:
       - rust-rewrite
 
-
 jobs:
   release:
     name: Release
@@ -12,9 +11,5 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Install cross
-        run: cargo install cross
-      - name: Test project
-        run: cross test --target arm-unknown-linux-musleabihf
-      - name: Build project
-        run: cross build --target arm-unknown-linux-musleabihf --release --locked
+      - name: Build binary
+        run: cargo test
