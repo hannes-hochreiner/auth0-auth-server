@@ -1,0 +1,16 @@
+name: CI
+on:
+  push:
+    branches:
+      - rust-rewrite
+
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Build binary
+        run: cargo build --release --locked
