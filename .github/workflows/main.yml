@@ -12,5 +12,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Build binary
-        run: cargo build --release --locked
+      - name: Install cross
+        run: cargo install cross
+      - name: Test project
+        run: cross test --target arm-unknown-linux-musleabihf
+      - name: Build project
+        run: cross build --target arm-unknown-linux-musleabihf --release --locked
