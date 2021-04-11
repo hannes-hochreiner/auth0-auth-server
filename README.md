@@ -1,3 +1,4 @@
+![CI](https://github.com/hannes-hochreiner/auth0-auth-server/workflows/CI/badge.svg)
 # Auth0 Authentication Server
 An authentication server using Auth0 as a backend.
 
