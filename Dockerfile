@@ -1,4 +1,5 @@
 FROM rust:alpine3.13
+RUN apk add openssl-dev
 RUN mkdir -p /opt/auth0-auth-server
 COPY src /opt/auth0-auth-server/src
 COPY Cargo.* /opt/auth0-auth-server/
