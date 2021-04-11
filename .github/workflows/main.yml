@@ -1,20 +1,21 @@
 name: CI
-on: [push]
+on:
+  push:
+    branches:
+      - rust-rewrite
 
 jobs:
-  test:
-    name: Test
+  release:
+    name: Release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v1
-        with:
-          node-version: '12.x'
-      - run: npm install
-      - run: npm test
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Build binary
+        run: cargo test
   publish:
     name: Publish to Docker
-    needs: test
+    needs: release
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repo

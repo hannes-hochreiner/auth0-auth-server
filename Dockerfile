@@ -1,15 +1,16 @@
-FROM node:lts-alpine
+FROM rust:slim
+RUN apt update && apt install librust-openssl-dev -y
 RUN mkdir -p /opt/auth0-auth-server
 COPY src /opt/auth0-auth-server/src
-COPY package*.json /opt/auth0-auth-server/
-COPY babel.config.json /opt/auth0-auth-server/babel.config.json
-RUN cd /opt/auth0-auth-server && npm install && npm run build
+COPY Cargo.* /opt/auth0-auth-server/
+RUN cd /opt/auth0-auth-server && cargo build --release --locked
 
-FROM node:lts-alpine
+FROM debian:stable-slim
 MAINTAINER Hannes Hochreiner <hannes@hochreiner.net>
-COPY --from=0 /opt/auth0-auth-server/bld /opt/auth0-auth-server
-COPY --from=0 /opt/auth0-auth-server/package*.json /opt/auth0-auth-server/
-RUN cd /opt/auth0-auth-server && npm install --production
+RUN apt update && apt install openssl ca-certificates -y
+COPY --from=0 /opt/auth0-auth-server/target/release/auth0-auth-server /opt/auth0-auth-server
 EXPOSE 8888
 VOLUME /var/auth0-auth-server/config.json
-CMD ["node", "/opt/auth0-auth-server/main", "-c", "/var/auth0-auth-server/config.json"]
+ENV AUTH0_CONFIG /var/auth0-auth-server/config.json
+ENV AUTH0_BIND_ADDRESS 127.0.0.1:8888
+CMD ["/opt/auth0-auth-server"]
