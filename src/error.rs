@@ -1,6 +1,6 @@
-use std::fmt;
-use std::error::Error;
 use std::env::VarError;
+use std::error::Error;
+use std::fmt;
 
 #[derive(Debug)]
 pub enum AuthServerError {
@@ -10,7 +10,9 @@ pub enum AuthServerError {
 impl fmt::Display for AuthServerError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
-            AuthServerError::EnvVarError(s, e) => write!(fmt, "environment variable error \"{}\": {}", s, e),
+            AuthServerError::EnvVarError(s, e) => {
+                write!(fmt, "environment variable error \"{}\": {}", s, e)
+            }
         }
     }
 }
