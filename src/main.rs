@@ -21,7 +21,6 @@ use error::AuthServerError;
 #[allow(non_snake_case)]
 #[derive(Deserialize, Debug, Clone)]
 struct Configuration {
-    logLevel: String,
     audience: String,
     issuer: String,
     headerNames: HashMap<String, String>,
