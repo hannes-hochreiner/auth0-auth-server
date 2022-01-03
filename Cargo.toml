@@ -15,7 +15,7 @@ hyper = { version = "0.14", features = ["full"] }
 hyper-tls = "0.5"
 chrono = "0.4"
 log = "0.4"
-env_logger = "0.7"
+env_logger = "0.9"
 
 [package.metadata.release]
 publish = false
