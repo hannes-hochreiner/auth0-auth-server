@@ -25,6 +25,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.52"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "84450d0b4a8bd1ba4144ce8ce718fbc5d071358b1e5384bace6536b3d1f2d5b3"
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -40,6 +46,7 @@ name = "auth0-auth-server"
 version = "2.0.1"
 dependencies = [
  "alcoholic_jwt",
+ "anyhow",
  "chrono",
  "env_logger",
  "hyper",

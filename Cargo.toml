@@ -16,6 +16,7 @@ hyper-tls = "0.5"
 chrono = "0.4"
 log = "0.4"
 env_logger = "0.9"
+anyhow = "1"
 
 [package.metadata.release]
 publish = false

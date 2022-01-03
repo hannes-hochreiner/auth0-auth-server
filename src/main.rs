@@ -12,12 +12,12 @@ use hyper_tls::HttpsConnector;
 use serde::Deserialize;
 use serde_json;
 use std::collections::HashMap;
+use std::env;
 use std::fs::File;
 use std::future::Future;
 use std::io::BufReader;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::{env, error::Error};
 use tokio::sync::{mpsc, oneshot};
 mod error;
 use error::AuthServerError;
@@ -32,7 +32,7 @@ struct Configuration {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> anyhow::Result<()> {
     env_logger::init();
     let config_filename = get_env("AUTH0_CONFIG").unwrap_or(String::from("config.json"));
     let file = File::open(config_filename)?;
@@ -42,23 +42,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let address = get_env("AUTH0_BIND_ADDRESS").unwrap_or(String::from("127.0.0.1:8888"));
     let addr = (&*address).parse()?;
     info!("Starting server at {}", address);
-    let (cmd_tx, mut cmd_rx) = mpsc::channel::<oneshot::Sender<JWKS>>(100);
+    let (cmd_tx, cmd_rx) = mpsc::channel::<oneshot::Sender<JWKS>>(100);
 
-    tokio::spawn(async move {
-        let mut jwks = get_jwks(&*issuer).await.unwrap();
-        let mut update_time = Utc::now();
-
-        while let Some(response) = cmd_rx.recv().await {
-            let now = Utc::now();
-
-            if now - update_time > chrono::Duration::hours(1) {
-                update_time = now;
-                jwks = get_jwks(&*issuer).await.unwrap();
-            }
-
-            response.send(jwks.clone()).unwrap();
-        }
-    });
+    tokio::spawn(get_jwks_wrapper(issuer, cmd_rx));
 
     let server = Server::bind(&addr).serve(ServiceFactory {
         sender: cmd_tx,
@@ -73,11 +59,34 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+async fn get_jwks_wrapper(
+    issuer: String,
+    mut cmd_rx: mpsc::Receiver<oneshot::Sender<JWKS>>,
+) -> anyhow::Result<()> {
+    let mut jwks = get_jwks(&issuer).await?;
+    let mut update_time = Utc::now();
+
+    while let Some(response) = cmd_rx.recv().await {
+        let now = Utc::now();
+
+        if now - update_time > chrono::Duration::hours(1) {
+            update_time = now;
+            jwks = get_jwks(&*issuer).await?;
+        }
+
+        response
+            .send(jwks.clone())
+            .map_err(|e| anyhow::anyhow!("error sending response for JWKS: {:?}", e))?;
+    }
+
+    Ok(())
+}
+
 fn get_env(key: &str) -> Result<String, AuthServerError> {
     env::var(key).map_err(|e| AuthServerError::from((key, e)))
 }
 
-async fn get_jwks(issuer: &str) -> Result<JWKS, Box<dyn Error>> {
+async fn get_jwks(issuer: &str) -> anyhow::Result<JWKS> {
     info!("Updating JWKS from {}.well-known/jwks.json", issuer);
     let client = Client::builder().build::<_, hyper::Body>(HttpsConnector::new());
     let mut resp = client
@@ -102,7 +111,7 @@ struct AuthorizationService {
 
 impl Service<Request<Body>> for AuthorizationService {
     type Response = Response<Body>;
-    type Error = hyper::Error;
+    type Error = anyhow::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -117,8 +126,8 @@ impl Service<Request<Body>> for AuthorizationService {
         let fut = async move {
             debug!("Requesting JWKS");
             let (resp_tx, resp_rx) = oneshot::channel();
-            sender.send(resp_tx).await.ok().unwrap();
-            let jwks = resp_rx.await.unwrap();
+            sender.send(resp_tx).await?;
+            let jwks = resp_rx.await?;
             debug!("Obtained JWKS");
 
             // get token
@@ -127,8 +136,7 @@ impl Service<Request<Body>> for AuthorizationService {
                 _ => {
                     return Ok(Response::builder()
                         .status(StatusCode::FORBIDDEN)
-                        .body(Body::empty())
-                        .unwrap());
+                        .body(Body::empty())?);
                 }
             };
             let token = match authorization.split(" ").last() {
@@ -137,15 +145,16 @@ impl Service<Request<Body>> for AuthorizationService {
                     error!("Could not find token");
                     return Ok(Response::builder()
                         .status(StatusCode::FORBIDDEN)
-                        .body(Body::empty())
-                        .unwrap());
+                        .body(Body::empty())?);
                 }
             };
             let kid = token_kid(token)
-                .expect("Error finding key id")
-                .expect("Error decoding key");
+                .map_err(|e| anyhow::anyhow!("error finding key: {:?}", e))?
+                .ok_or(anyhow::anyhow!("error decoding key"))?;
             debug!("Decoded token key");
-            let jwk = jwks.find(&kid).expect("Key not found in set");
+            let jwk = jwks
+                .find(&kid)
+                .ok_or(anyhow::anyhow!("key not found in set"))?;
             debug!("Found key");
             let validations = vec![
                 Validation::Issuer(config.issuer.to_string()),
@@ -153,12 +162,13 @@ impl Service<Request<Body>> for AuthorizationService {
                 Validation::SubjectPresent,
                 Validation::NotExpired,
             ];
-            let res = validate(token, jwk, validations).expect("Validation failed");
+            let res = validate(token, jwk, validations)
+                .map_err(|e| anyhow::anyhow!("validation failed: {:?}", e))?;
             let claims = res.claims;
             debug!("Found claims: {:?}", claims);
             let scopes: Vec<&str> = claims["scope"]
                 .as_str()
-                .expect("no scope found")
+                .ok_or(anyhow::anyhow!("no scope found"))?
                 .split(" ")
                 .collect();
             debug!("Found scopes: {:?}", scopes);
@@ -179,8 +189,7 @@ impl Service<Request<Body>> for AuthorizationService {
                 _ => {
                     return Ok(Response::builder()
                         .status(StatusCode::FORBIDDEN)
-                        .body(Body::empty())
-                        .unwrap());
+                        .body(Body::empty())?);
                 }
             };
 
@@ -197,8 +206,7 @@ impl Service<Request<Body>> for AuthorizationService {
                 _ => {
                     return Ok(Response::builder()
                         .status(StatusCode::FORBIDDEN)
-                        .body(Body::empty())
-                        .unwrap());
+                        .body(Body::empty())?);
                 }
             };
 
@@ -228,8 +236,7 @@ impl Service<Request<Body>> for AuthorizationService {
                     error!("No matched path found");
                     return Ok(Response::builder()
                         .status(StatusCode::FORBIDDEN)
-                        .body(Body::empty())
-                        .unwrap());
+                        .body(Body::empty())?);
                 }
             };
 
@@ -245,8 +252,7 @@ impl Service<Request<Body>> for AuthorizationService {
                     error!("No verb \"{}\" not found for path", method);
                     return Ok(Response::builder()
                         .status(StatusCode::FORBIDDEN)
-                        .body(Body::empty())
-                        .unwrap());
+                        .body(Body::empty())?);
                 }
             };
 
@@ -262,8 +268,7 @@ impl Service<Request<Body>> for AuthorizationService {
                 error!("No relevant scopes found");
                 return Ok(Response::builder()
                     .status(StatusCode::FORBIDDEN)
-                    .body(Body::empty())
-                    .unwrap());
+                    .body(Body::empty())?);
             }
 
             let id_name = config
@@ -283,15 +288,16 @@ impl Service<Request<Body>> for AuthorizationService {
             let resp = Response::builder()
                 .status(StatusCode::OK)
                 .header(
-                    HeaderName::from_bytes(group_name.as_bytes()).unwrap(),
+                    HeaderName::from_bytes(group_name.as_bytes())?,
                     relevant_scopes.join(","),
                 )
                 .header(
-                    HeaderName::from_bytes(id_name.as_bytes()).unwrap(),
-                    claims["sub"].as_str().expect("no scope found"),
+                    HeaderName::from_bytes(id_name.as_bytes())?,
+                    claims["sub"]
+                        .as_str()
+                        .ok_or(anyhow::anyhow!("no scope found"))?,
                 )
-                .body(Body::empty())
-                .unwrap();
+                .body(Body::empty())?;
             Ok(resp)
         };
 
@@ -300,23 +306,24 @@ impl Service<Request<Body>> for AuthorizationService {
     }
 }
 
-fn get_header_value(header: &str, header_map: &HeaderMap<HeaderValue>) -> Result<String, ()> {
+fn get_header_value(header: &str, header_map: &HeaderMap<HeaderValue>) -> anyhow::Result<String> {
     let header_value = match header_map.get(header) {
         Some(val) => val,
         _ => {
-            error!("Did not find the header field \"{}\"", header);
-            return Err(());
+            return Err(anyhow::anyhow!(
+                "Did not find the header field \"{}\"",
+                header
+            ));
         }
     };
 
     let header_str = match header_value.to_str() {
         Ok(str) => str,
         Err(_) => {
-            error!(
+            return Err(anyhow::anyhow!(
                 "Could not convert the value of the header field \"{}\" into a string",
                 header
-            );
-            return Err(());
+            ));
         }
     };
 
