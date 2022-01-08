@@ -18,7 +18,10 @@ use std::future::Future;
 use std::io::BufReader;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tokio::sync::{mpsc, oneshot};
+use tokio::{
+    sync::{mpsc, oneshot},
+    time::timeout,
+};
 mod error;
 use error::AuthServerError;
 
@@ -69,7 +72,7 @@ async fn get_jwks_wrapper(
     while let Some(response) = cmd_rx.recv().await {
         let now = Utc::now();
 
-        if now - update_time > chrono::Duration::hours(1) {
+        if (now - update_time) > chrono::Duration::hours(1) {
             update_time = now;
             jwks = get_jwks(&*issuer).await?;
         }
@@ -89,9 +92,11 @@ fn get_env(key: &str) -> Result<String, AuthServerError> {
 async fn get_jwks(issuer: &str) -> anyhow::Result<JWKS> {
     info!("Updating JWKS from {}.well-known/jwks.json", issuer);
     let client = Client::builder().build::<_, hyper::Body>(HttpsConnector::new());
-    let mut resp = client
-        .get(format!("{}.well-known/jwks.json", issuer).parse()?)
-        .await?;
+    let mut resp = timeout(
+        std::time::Duration::from_secs(1),
+        client.get(format!("{}.well-known/jwks.json", issuer).parse()?),
+    )
+    .await??;
 
     let mut body_vec: Vec<u8> = vec![];
 
