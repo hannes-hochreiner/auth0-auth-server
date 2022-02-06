@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
     let address = get_env("AUTH0_BIND_ADDRESS").unwrap_or(String::from("127.0.0.1:8888"));
     let addr = (&*address).parse()?;
     info!("Starting server at {}", address);
-    let (cmd_tx, cmd_rx) = mpsc::channel::<oneshot::Sender<JWKS>>(100);
+    let (cmd_tx, cmd_rx) = mpsc::channel::<oneshot::Sender<anyhow::Result<JWKS>>>(100);
 
     tokio::spawn(get_jwks_wrapper(issuer, cmd_rx));
 
@@ -64,21 +64,26 @@ async fn main() -> anyhow::Result<()> {
 
 async fn get_jwks_wrapper(
     issuer: String,
-    mut cmd_rx: mpsc::Receiver<oneshot::Sender<JWKS>>,
+    mut cmd_rx: mpsc::Receiver<oneshot::Sender<anyhow::Result<JWKS>>>,
 ) -> anyhow::Result<()> {
-    let mut jwks = get_jwks(&issuer).await?;
+    let mut jwks = get_jwks(&issuer).await;
     let mut update_time = Utc::now();
 
     while let Some(response) = cmd_rx.recv().await {
-        let now = Utc::now();
+        let time_since_update = Utc::now() - update_time;
 
-        if (now - update_time) > chrono::Duration::hours(1) {
-            update_time = now;
-            jwks = get_jwks(&*issuer).await?;
+        log::debug!("time since JWKS udpate: {}", time_since_update);
+
+        if jwks.is_err() || time_since_update > chrono::Duration::hours(1) {
+            update_time = Utc::now();
+            jwks = get_jwks(&*issuer).await;
         }
 
         response
-            .send(jwks.clone())
+            .send(match &jwks {
+                Ok(value) => Ok(value.clone()),
+                Err(e) => Err(anyhow::anyhow!("error retrieving JWKS: {:?}", e)),
+            })
             .map_err(|e| anyhow::anyhow!("error sending response for JWKS: {:?}", e))?;
     }
 
@@ -110,7 +115,7 @@ async fn get_jwks(issuer: &str) -> anyhow::Result<JWKS> {
 }
 
 struct AuthorizationService {
-    sender: mpsc::Sender<oneshot::Sender<JWKS>>,
+    sender: mpsc::Sender<oneshot::Sender<anyhow::Result<JWKS>>>,
     configuration: Configuration,
 }
 
@@ -132,7 +137,7 @@ impl Service<Request<Body>> for AuthorizationService {
             debug!("Requesting JWKS");
             let (resp_tx, resp_rx) = oneshot::channel();
             sender.send(resp_tx).await?;
-            let jwks = resp_rx.await?;
+            let jwks = resp_rx.await??;
             debug!("Obtained JWKS");
 
             // get token
@@ -336,7 +341,7 @@ fn get_header_value(header: &str, header_map: &HeaderMap<HeaderValue>) -> anyhow
 }
 
 struct ServiceFactory {
-    sender: mpsc::Sender<oneshot::Sender<JWKS>>,
+    sender: mpsc::Sender<oneshot::Sender<anyhow::Result<JWKS>>>,
     configuration: Configuration,
 }
 
@@ -351,13 +356,13 @@ impl<T> Service<T> for ServiceFactory {
 
     fn call(&mut self, _: T) -> Self::Future {
         let sender = self.sender.clone();
-        let config = self.configuration.clone();
-        let fut = async move {
+        let configuration = self.configuration.clone();
+
+        Box::pin(async move {
             Ok(AuthorizationService {
-                sender: sender,
-                configuration: config,
+                sender,
+                configuration,
             })
-        };
-        Box::pin(fut)
+        })
     }
 }
